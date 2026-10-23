@@ -1,0 +1,37 @@
+appId: com.quillkey.desktop
+productName: QuillKey
+asar: true
+directories:
+  output: dist
+files:
+  - desktop/**
+  - ui/**
+  - server.mjs
+  - package.json
+  - node_modules/ws/**
+  - assets/**
+extraResources:
+  - from: tests/fixtures/synthetic-english.wav
+    to: tests/fixtures/synthetic-english.wav
+  - from: vendor/runtime
+    to: runtime
+  - from: models/nemotron-en-q8.gguf
+    to: models/nemotron-en-q8.gguf
+  - from: licenses
+    to: notices
+  - from: native/QuillKey.Native.exe
+    to: native/QuillKey.Native.exe
+win:
+  icon: assets/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: QuillKey-${version}-Setup.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+

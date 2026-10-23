@@ -1,0 +1,20 @@
+QuillKey is an independent local Windows dictation application.
+
+The bundled Nemotron speech model is unmodified:
+Licensed by NVIDIA Corporation under the NVIDIA Open Model License
+Model: nvidia/nemotron-speech-streaming-en-0.6b
+Revision: ebe59e5a817142986528bbbee5dba8db7b38ed50
+Terms: licenses/NVIDIA-Open-Model-License.html
+
+The native speech runtime is NVIDIA NeMo-Speech.cpp v0.2.0.
+Its original license and third-party notices are preserved under
+runtime/nemo-speech-0.2.0-windows-x86_64-cuda/share/licenses in the installer.
+
+Electron and its third-party notices are included by electron-builder.
+The ws dependency is MIT-licensed; its license is in node_modules/ws/LICENSE.
+
+No affiliation with NVIDIA or Wispr is implied. No Wispr application files,
+models, prompts, assets, or proprietary code are included in QuillKey.
+
+QuillKey source has no redistribution license granted yet. Public visibility
+does not change the licenses of its third-party components.
