@@ -1,0 +1,26 @@
+{
+  "name": "quillkey",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Local English voice dictation for Windows",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "desktop": "electron .",
+    "build:native": "powershell -NoProfile -ExecutionPolicy Bypass -File native/build.ps1",
+    "dist:win": "npm run build:native && npm run build:fixture && electron-builder --config electron-builder.yml --win nsis",
+    "pack:win": "npm run build:native && npm run build:fixture && electron-builder --config electron-builder.yml --win --dir",
+    "build:fixture": "powershell -NoProfile -ExecutionPolicy Bypass -File tests/New-SyntheticFixture.ps1"
+  },
+  "dependencies": {
+    "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "electron": "45.0.0",
+    "electron-builder": "26.15.3"
+  },
+  "main": "desktop/main.cjs",
+  "author": "alivesan",
+  "license": "UNLICENSED"
+}
