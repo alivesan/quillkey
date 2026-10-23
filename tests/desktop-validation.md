@@ -10,6 +10,9 @@ Validation date: 2026-10-23. Windows x64, RTX 2070 SUPER 8 GB, Electron 45.0.0, 
 - `QuillKey.Native.exe --self-test`: interactive disposable test window passed real SendInput paste, clipboard restoration, and focus-change refusal. Test window was activated using computer-use; it closed after success. Existing clipboard was preserved.
 - Real Electron `--smoke-test`: synthetic microphone -> AudioWorklet -> local WebSocket -> CUDA -> final transcript -> IPC passed. Expected phrase recognized; exit 0, server/helper shutdown exit 0. Chromium loops the fixture, so the test may return a repeated phrase. This is a synthetic integration check, not an accuracy score.
 - Dependency audit: zero reported vulnerabilities after installing current pinned Electron/build tools and ws.
+- Final `dist/win-unpacked/QuillKey.exe --smoke-test`: packaged executable and bundled model passed, exit 0; native helper and server exited 0.
+- NSIS installer completed per-user installation with exit 0; installed executable exists under LocalAppData/Programs/QuillKey. Authenticode status is NotSigned.
+- Installer size: 877,060,115 bytes. SHA-256: `2323fb1badc5c4b9c53e7412e97210aaafb225f27c8058c43b6745297664a17f`.
 
 ## Interpretation and remaining manual matrix
 
