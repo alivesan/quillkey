@@ -76,7 +76,7 @@ function toggle() {
 function startCaptured(target) {
   if (!current) return;
   current.capturePending = false; current.target = target || undefined; current.copyOnly = !target;
-  deadline(140000); sendNative({ type: 'active', value: true }); command('start', current.id);
+  deadline(32 * 60 * 1000); sendNative({ type: 'active', value: true }); command('start', current.id);
   if (!target) bubble('Connecting', 'Your transcript will copy — press Ctrl+V to paste.');
 }
 function finishInsertion(ok) {
@@ -199,7 +199,7 @@ function nativeEvent(value) {
   if (value.type === 'press') {
     if (current || !rendererReady || !alive(dashboard) || dashboard.isFocused() || !value.target || typeof value.target.token !== 'string') { if (!current) sendNative({ type: 'active', value: false }); return; }
     current = { id: randomUUID(), target: value.target, phase: 'connecting', released: false, inserting: false };
-    deadline(140000);
+    deadline(32 * 60 * 1000);
     sendNative({ type: 'active', value: true }); command('start', current.id); bubble('Listening', 'Release Ctrl + Alt + Space to insert');
   }
   if (value.type === 'release' && current && !current.toggle && !current.released) { current.released = true; current.phase = 'processing'; command('stop', current.id); bubble('Finishing', 'Transcribing locally…'); }
@@ -216,7 +216,7 @@ ipcMain.on('quillkey:state', (event, value) => {
     bubble(current.phase === 'recording' ? 'Listening' : current.phase === 'processing' ? 'Finishing' : 'Connecting', current.phase === 'recording' ? (typeof value.text === 'string' && value.text ? value.text.slice(-140) : current.copyOnly ? 'Click again to copy — then press Ctrl+V' : current.toggle ? 'Click again to paste into your chat' : 'Release Ctrl + Alt + Space to insert') : current.phase === 'processing' ? 'Transcribing locally…' : current.copyOnly ? 'Your transcript will copy — press Ctrl+V to paste.' : 'Preparing your microphone…');
   }
   if (value.status === 'recording' && current.smoke && !current.smokeRecording) { current.smokeRecording = true; setTimeout(() => { if (current?.smoke) { current.released = true; command('stop', current.id); } }, 8500); }
-  if (value.status === 'processing') deadline(35000);
+  if (value.status === 'processing') { current.released = true; deadline(35000); }
   if (smokeTest && ['error','cancelled'].includes(value.status)) { smokeFinish(false, value.status); return; }
   if (value.status === 'error' || value.status === 'cancelled') { cancel(); bubble('Dictation stopped', value.status === 'error' ? 'Open QuillKey to check the speech connection.' : 'Nothing inserted', 4000, value.status === 'error' ? 'error' : 'idle'); }
 });

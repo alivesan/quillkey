@@ -1,5 +1,13 @@
 # Windows desktop validation
 
+## v0.3.1 long dictation — 2026-10-24
+
+- Recording now stops gracefully at 30 minutes from engine readiness. Server and desktop watchdogs allow 32 minutes; the existing finalization deadline remains 30 seconds in the renderer.
+- 39 tests pass, including virtual-time coverage past the old 125-second cutoff, automatic flush/commit at 30 minutes, exactly-once final reporting, timer cleanup on cancellation/error, and automatic-stop clipboard delivery without a second click.
+- Packaged v0.3.1 synthetic microphone-to-model smoke test passed (expected phrase recognized, exit 0, clean server/helper shutdown).
+- Per-user v0.3.1 installer exited 0; installed executable reports 0.3.1.0.
+- These timer tests do not establish 30-minute real-audio accuracy, memory use, or GPU stability. No full 30-minute endurance run has been performed.
+
 ## v0.3.0 update — 2026-10-24
 
 - `npm test`: 36 passing tests, including hover/click lifecycle, destroyed-window IPC regression, clipboard success verification, copy failure, stale/cancelled finals, helper exit, and timeout fallback.

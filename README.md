@@ -6,7 +6,7 @@ QuillKey uses NVIDIA Nemotron streaming ASR on your own GPU. No transcription AP
 
 ## Install and use
 
-Run `QuillKey-0.3.0-Setup.exe` from the build output. Installation is per-user, with Start menu and desktop shortcuts. The installer bundles the English model and CUDA runtime; Node.js and Python are not required by the installed app. This preview is unsigned.
+Run `QuillKey-0.3.1-Setup.exe` from the build output. Installation is per-user, with Start menu and desktop shortcuts. The installer bundles the English model and CUDA runtime; Node.js and Python are not required by the installed app. This preview is unsigned.
 
 1. Open QuillKey and wait for **Local engine ready**.
 2. Place the caret in an editable field in another app.
@@ -22,7 +22,7 @@ Requirements: Windows x64, .NET Framework 4.x (included with modern Windows), co
 - Native global shortcut, nonactivating overlay, streaming partials, final transcript, cancel, and tray lifecycle.
 - The helper records the original window/control and UI Automation identity when available. It refuses insertion if focus changes or a password control is detected. Unsupported or elevated apps use the clipboard fallback.
 - Insertion sends one paste shortcut. Clipboard formats are snapshotted conservatively and restored after 600 ms only if the clipboard sequence is unchanged. If safe preservation or insertion fails, QuillKey deliberately replaces the clipboard with your final transcript for Ctrl+V. If the clipboard is unavailable, the transcript remains in QuillKey and an error is shown. Slow target apps may not consume a paste before restoration; sending input is not proof the target accepted it.
-- Very short shortcut taps cancel pending microphone setup. Start speaking once the overlay is listening. Sessions are bounded to about two minutes.
+- Very short shortcut taps cancel pending microphone setup. Start speaking once the overlay is listening. Recordings support up to 30 minutes, then automatically stop and finalize for insertion or clipboard copy. Completed segments remain in the dashboard. A separate 32-minute watchdog closes stuck sessions; long-session accuracy and resource use still need real-world testing.
 - No AI rewriting, filler cleanup guarantee, vocabulary editor, model switch, auto-start, or automatic updates yet. Parakeet and optional local refinement are future work.
 - Audio and transcripts are processed locally. There is no app transcript history or audio recording store. Diagnostic logs live under the Electron user-data directory and may contain runtime diagnostics. Setup/build downloads dependencies; normal transcription uses loopback services. We have not audited vendor binaries with a network capture.
 

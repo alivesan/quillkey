@@ -15,10 +15,12 @@ function harness(initial={ready:true,status:'ready',device:'cuda:0'},desktopMode
   class WS{static OPEN=1;constructor(){sockets.push(this);this.readyState=1;this.sent=[];this.bufferedAmount=0;}send(v){this.sent.push(v);}close(){this.readyState=3;}}
   class AC{constructor(){this.sampleRate=48000;this.state='running';this.audioWorklet={addModule:async()=>{}};this.destination={};}async resume(){}createMediaStreamSource(){return{connect(){},disconnect(){}};}createGain(){return{gain:{},connect(){},disconnect(){}};}async close(){this.state='closed';}}
   class AW{constructor(){this.port={postMessage:()=>{this.port.onmessage({data:{type:'flushed'}});}};}connect(){}disconnect(){}}
-  let clock=1000;
-  const context={document:{getElementById:el},navigator:{mediaDevices:{getUserMedia:async()=>{requests++;return{getTracks:()=>[{stop(){trackStops++;}}]};}},clipboard:{writeText:async()=>{}}},location:{protocol:'http:',host:'localhost:8765'},AudioContext:AC,AudioWorkletNode:AW,WebSocket:WS,performance:{now:()=>clock+=100},fetch:async()=>({ok:true,json:async()=>status}),setTimeout:()=>1,clearTimeout(){},setInterval(){},window:{quillkey:desktopMode?bridge:undefined,addEventListener:(name,fn)=>listeners.set(name,fn)}};
+  let clock=1000,timerClock=0,nextTimer=1;const timers=new Map();
+  const setTimer=(fn,delay)=>{const id=nextTimer++;timers.set(id,{fn,at:timerClock+delay});return id;};
+  const advance=ms=>{const end=timerClock+ms;while(true){const next=[...timers].filter(([,timer])=>timer.at<=end).sort((a,b)=>a[1].at-b[1].at)[0];if(!next)break;timerClock=next[1].at;timers.delete(next[0]);next[1].fn();}clock+=ms;timerClock=end;};
+  const context={document:{getElementById:el},navigator:{mediaDevices:{getUserMedia:async()=>{requests++;return{getTracks:()=>[{stop(){trackStops++;}}]};}},clipboard:{writeText:async()=>{}}},location:{protocol:'http:',host:'localhost:8765'},AudioContext:AC,AudioWorkletNode:AW,WebSocket:WS,performance:{now:()=>clock+=100},fetch:async()=>({ok:true,json:async()=>status}),setTimeout:setTimer,clearTimeout:id=>timers.delete(id),setInterval(){},window:{quillkey:desktopMode?bridge:undefined,addEventListener:(name,fn)=>listeners.set(name,fn)}};
   vm.createContext(context);vm.runInContext(app,context);
-  return{el,sockets,listeners,states,finals,command:event=>command(event),shellStatus:event=>statusCallback(event),deferMicrophone(){context.navigator.mediaDevices.getUserMedia=()=>new Promise(resolve=>resolveMicrophone=resolve);},resolveMicrophone(){resolveMicrophone({getTracks:()=>[{stop(){trackStops++;}}]});},get requests(){return requests;},get trackStops(){return trackStops;},setStatus(value){status=value;return vm.runInContext('checkStatus()',context);},event(ws,m){ws.onmessage({data:JSON.stringify(m)});}};
+  return{el,sockets,listeners,states,finals,advance,get pendingTimers(){return timers.size;},command:event=>command(event),shellStatus:event=>statusCallback(event),deferMicrophone(){context.navigator.mediaDevices.getUserMedia=()=>new Promise(resolve=>resolveMicrophone=resolve);},resolveMicrophone(){resolveMicrophone({getTracks:()=>[{stop(){trackStops++;}}]});},get requests(){return requests;},get trackStops(){return trackStops;},setStatus(value){status=value;return vm.runInContext('checkStatus()',context);},event(ws,m){ws.onmessage({data:JSON.stringify(m)});}};
 }
 
 test('PCM preserves samples, mixes channels and flushes tail at supported device rates',()=>{
@@ -106,4 +108,34 @@ test('desktop startup readiness explains unavailable shortcut without disabling 
   h.el('stop').click();h.event(ws,{type:'input_audio_buffer.committed'});
   assert.equal(h.el('copy').disabled,false);assert.equal(h.finals.length,0);
   h.shellStatus({nativeReady:true});assert.match(h.el('mic-note').textContent,/Hold Ctrl\+Alt\+Space/);
+});
+
+
+test('30 minute recording starts its limit at readiness and automatically commits final once',async()=>{
+  const h=harness(undefined,true);await tick();h.command({type:'start',sessionId:'long'});await tick();
+  const ws=h.sockets[0];ws.onopen();h.advance(19000);h.event(ws,{type:'session.updated'});
+  assert.match(h.el('state-description').textContent,/30 minutes/);
+  h.advance(126000);assert.equal(h.states.at(-1).status,'recording');assert.equal(ws.readyState,1);
+  h.event(ws,{type:'conversation.item.input_audio_transcription.completed',transcript:'Early segment.'});
+  h.advance(30*60*1000-126000-1);assert.equal(h.states.at(-1).status,'recording');
+  h.advance(1);assert.equal(h.states.at(-1).status,'processing');assert.ok(h.trackStops>0);
+  assert.equal(ws.sent.filter(message=>typeof message==='string'&&JSON.parse(message).type==='input_audio_buffer.commit').length,1);
+  h.command({type:'stop',sessionId:'long'});
+  h.event(ws,{type:'conversation.item.input_audio_transcription.completed',transcript:'Final tail.'});
+  h.event(ws,{type:'input_audio_buffer.committed'});h.event(ws,{type:'input_audio_buffer.committed'});
+  assert.equal(h.finals.length,1);assert.equal(h.finals[0].text,'Early segment.\nFinal tail.');
+  assert.equal(h.states.at(-1).status,'ready');assert.equal(h.pendingTimers,0);
+});
+
+test('manual stop, cancellation and disposal clear the recording limit timer',async()=>{
+  for(const action of ['stop','cancel','error','unload']){
+    const h=harness(undefined,true);await tick();h.command({type:'start',sessionId:action});await tick();
+    const ws=h.sockets[0];ws.onopen();h.event(ws,{type:'session.updated'});assert.equal(h.pendingTimers,1);
+    if(action==='error')h.event(ws,{type:'error',message:'Engine stopped'});
+    else if(action==='unload')h.listeners.get('beforeunload')();
+    else h.command({type:action,sessionId:action});
+    if(action==='stop')h.event(ws,{type:'input_audio_buffer.committed'});
+    assert.equal(h.pendingTimers,0);
+    const count=h.states.length;h.advance(31*60*1000);assert.equal(h.states.length,count);
+  }
 });

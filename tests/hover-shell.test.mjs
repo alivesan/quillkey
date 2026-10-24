@@ -107,6 +107,17 @@ test('refused native insertion copies final text and verifies success', () => {
   assert.match(s.statuses.at(-1).title, /^Copied .* press Ctrl\+V$/);
   assert.equal(s.commands.at(-1).ok, true);
 });
+
+test('automatic recording stop permits the final transcript without a second click', () => {
+  const s = shell(); s.api.ready(false); s.api.toggle();
+  const id = s.api.get().id;
+  const event = { sender: s.contents, senderFrame: s.contents.mainFrame };
+  s.handlers['quillkey:state'](event, { sessionId: id, status: 'recording' });
+  s.handlers['quillkey:state'](event, { sessionId: id, status: 'processing' });
+  s.handlers['quillkey:final'](event, { sessionId: id, text: 'Long dictation completed.' });
+  assert.deepEqual(s.copied, ['Long dictation completed.']);
+  assert.equal(s.api.get(), null);
+});
 test('capture failure and missing native helper allow copy-only click dictation', () => {
   for (const unavailable of [false, true]) {
     const s = shell(); s.api.ready(!unavailable); s.api.toggle();
