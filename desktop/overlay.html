@@ -1,3 +1,31 @@
-<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'"><style>
-html,body{margin:0;background:transparent;font:14px 'Segoe UI',sans-serif;color:#fff}main{margin:8px;padding:16px 22px;background:#17241ff5;border:1px solid #b4f3d766;border-radius:22px;box-shadow:0 8px 20px #0005;display:flex;gap:14px;align-items:center}i{width:10px;height:10px;background:#abf2cd;border-radius:50%}strong{font-size:14px}p{margin:4px 0 0;color:#c3d6cc;font-size:12px}</style></head><body><main><i></i><div><strong id="title">QuillKey</strong><p id="detail">Hold Ctrl + Alt + Space to dictate</p></div></main><script src="overlay.js"></script></body></html>
-
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'">
+  <title>QuillKey dictation</title>
+  <style>
+    *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:transparent}body{display:flex;align-items:flex-end;justify-content:center;padding:4px;font-family:'Segoe UI Variable','Segoe UI',sans-serif;color:#f4f0e8;user-select:none}
+    .widget{position:relative;display:flex;align-items:center;width:56px;height:40px;flex:none;overflow:hidden;border:1px solid #ffffff26;border-radius:22px;background:linear-gradient(145deg,#333137,#201f23);box-shadow:0 2px 4px #0005,inset 0 1px 0 #ffffff0c;transition:background .16s,border-color .16s}
+    .widget.expanded{width:312px;height:88px;border-radius:24px}.widget:hover{border-color:#b9a3ed99}.widget[data-phase="recording"]{background:linear-gradient(145deg,#3d344e,#292331);border-color:#b9a3ed80}.widget[data-phase="error"]{border-color:#ecab807a}
+    button{font:inherit;color:inherit;border:0;cursor:pointer;-webkit-app-region:no-drag}button:focus-visible{outline:2px solid #cdbaf6;outline-offset:-4px}button:disabled{cursor:wait}
+    .toggle{position:relative;display:flex;align-items:center;gap:13px;width:100%;height:100%;padding:0 15px;background:transparent;text-align:left;border-radius:inherit}.expanded .toggle{padding:0 18px; padding-right:52px}
+    .mic-wrap{position:relative;display:flex;align-items:center;justify-content:center;width:24px;height:28px;flex:none}.mic{width:21px;height:24px;fill:none;stroke:#e4d8fb;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.dot{position:absolute;right:-3px;bottom:0;width:6px;height:6px;border-radius:50%;background:#b9a3ed;box-shadow:0 0 0 2px #252329}
+    .copy{display:none;min-width:0}.expanded .copy{display:block}.title{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:14px;font-weight:600;letter-spacing:-.2px;line-height:22px}.detail{display:block;color:#c4bdce;font-size:12px;line-height:17px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .cancel{display:none;position:absolute;right:12px;top:28px;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:#ffffff0d;color:#c4bdce;font-size:21px;font-weight:300;line-height:1}.cancel:hover{background:#ffffff20;color:#fff}.expanded .cancel.available{display:flex}
+    .wave{display:none;align-items:center;gap:2px;height:22px}.wave span{width:3px;height:7px;border-radius:3px;background:#cdbaf6;animation:listen .8s ease-in-out infinite alternate}.wave span:nth-child(2){height:16px;animation-delay:-.4s}.wave span:nth-child(3){height:22px;animation-delay:-.2s}.wave span:nth-child(4){height:12px;animation-delay:-.6s}.widget[data-phase="recording"] .mic{display:none}.widget[data-phase="recording"] .wave{display:flex}.widget[data-phase="recording"] .dot{display:none}.widget[data-phase="connecting"] .dot,.widget[data-phase="processing"] .dot{background:#e5ce89}.widget[data-phase="error"] .dot{background:#edaf88}
+    @keyframes listen{to{transform:scaleY(.35);opacity:.65}}@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  </style>
+</head>
+<body>
+  <main id="widget" class="widget" data-phase="idle" aria-label="QuillKey dictation">
+    <button id="toggle" class="toggle" type="button" aria-label="Start dictation" title="Click to dictate · Hold Ctrl + Alt + Space">
+      <span class="mic-wrap" aria-hidden="true"><svg class="mic" viewBox="0 0 24 28"><rect x="8" y="2" width="8" height="15" rx="4"/><path d="M4 12v2a8 8 0 0 0 16 0v-2M12 22v4M8 26h8"/></svg><span class="wave"><span></span><span></span><span></span><span></span></span><span class="dot"></span></span>
+      <span class="copy" aria-live="polite" aria-atomic="true"><span id="title" class="title">QuillKey</span><span id="detail" class="detail">Click to dictate</span></span>
+    </button>
+    <button id="cancel" class="cancel" type="button" aria-label="Cancel dictation" title="Cancel dictation" disabled>×</button>
+  </main>
+  <script src="overlay.js"></script>
+</body>
+</html>

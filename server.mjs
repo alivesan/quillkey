@@ -86,7 +86,7 @@ wss.on('connection', client => {
   const upstream = new WebSocket(`ws://127.0.0.1:${enginePort}/v1/audio/transcriptions/realtime`, { headers: { Authorization: `Bearer ${secret}` }, maxPayload: 2 * 1024 * 1024 });
   const queue = []; let queuedBytes = 0;
   // Bound a session even if a client disappears without stopping its microphone.
-  const deadline = setTimeout(() => { error('Two-minute prototype recording limit reached.'); client.close(1000); upstream.close(); }, 125000);
+  const deadline = setTimeout(() => { error('Recording session timed out. Completed transcript remains available.'); client.close(1000); upstream.close(); }, 32 * 60 * 1000);
   upstream.on('open', () => { for (const [data, binary] of queue) upstream.send(data, { binary }); queue.length = 0; queuedBytes = 0; });
   client.on('message', (data, binary) => {
     if (upstream.bufferedAmount > 4 * 1024 * 1024) { error('Speech engine is not keeping up. Recording stopped.'); client.close(1011); return; }
