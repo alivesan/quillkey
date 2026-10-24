@@ -16,6 +16,89 @@ class Bridge : Form
     string token;
     string automationTarget;
     bool held, active, busy, registered;
+    IntPtr widgetWindow, dashboardWindow, cachedWindow, cachedFocus;
+    uint cachedPid;
+    string cachedAutomation;
+    DateTime cachedAt, lastCacheSample;
+    bool OwnWindow(IntPtr handle)
+    {
+        return handle != IntPtr.Zero && (handle == widgetWindow || handle == dashboardWindow);
+    }
+    void CacheExternalFocus()
+    {
+        if (held || active || busy || pendingTimer != null)return;
+        DateTime now = DateTime.UtcNow;
+        if ((now - lastCacheSample).TotalMilliseconds < 150)return;
+        lastCacheSample = now;
+        IntPtr foreground = GetForegroundWindow();
+        if (foreground == IntPtr.Zero || OwnWindow(foreground))return;
+        uint process;
+        uint thread = GetWindowThreadProcessId(foreground, out process);
+        if (process == (uint)System.Diagnostics.Process.GetCurrentProcess().Id)return;
+        GUI info = new GUI(); info.size = Marshal.SizeOf(info);
+        if (!GetGUIThreadInfo(thread, ref info) || info.focus == IntPtr.Zero)return;
+        cachedWindow = foreground; cachedFocus = info.focus; cachedPid = process;
+        cachedAutomation = FocusedAutomationId(); cachedAt = DateTime.UtcNow;
+    }
+    bool CanRestoreWidgetTarget(IntPtr foreground)
+    {
+        return widgetWindow != IntPtr.Zero && foreground == widgetWindow &&
+            window != IntPtr.Zero && !OwnWindow(window) && pid != 0;
+    }
+    bool LoadCachedTarget(DateTime now)
+    {
+        token = null;
+        double age = (now - cachedAt).TotalSeconds;
+        if (cachedWindow == IntPtr.Zero || cachedFocus == IntPtr.Zero || cachedPid == 0 || age < 0 || age > 5)return false;
+        window = cachedWindow; focus = cachedFocus; pid = cachedPid;
+        automationTarget = cachedAutomation;
+        return true;
+    }
+    bool RestoreWidgetTarget()
+    {
+        if (!CanRestoreWidgetTarget(GetForegroundWindow()))return false;
+        uint targetPid;
+        uint targetThread = GetWindowThreadProcessId(window, out targetPid);
+        if (targetThread == 0 || targetPid != pid)
+        {
+            Emit(new { type = "diagnostic", code = "widget-restore-failed",
+                reason = "target-process-changed", processId = pid });
+            return false;
+        }
+        uint foregroundPid;
+        uint foregroundThread = GetWindowThreadProcessId(widgetWindow, out foregroundPid);
+        uint currentThread = GetCurrentThreadId();
+        bool foregroundAttached = false, targetAttached = false;
+        bool activated = false, raised = false;
+        try
+        {
+            foregroundAttached = foregroundThread != 0 && foregroundThread != currentThread &&
+                AttachThreadInput(currentThread, foregroundThread, true);
+            targetAttached = targetThread != currentThread && targetThread != foregroundThread &&
+                AttachThreadInput(currentThread, targetThread, true);
+            // Recheck after attaching: never steal foreground following a user switch.
+            if (GetForegroundWindow() != widgetWindow)return false;
+            raised = BringWindowToTop(window);
+            activated = SetForegroundWindow(window);
+        }
+        finally
+        {
+            if (targetAttached) AttachThreadInput(currentThread, targetThread, false);
+            if (foregroundAttached) AttachThreadInput(currentThread, foregroundThread, false);
+        }
+        string mismatch = FocusMismatch();
+        Emit(new { type = "diagnostic", code = mismatch == null ? "widget-restore-succeeded" : "widget-restore-failed",
+            reason = mismatch, processId = pid, activated = activated, raised = raised,
+            foregroundInputAttached = foregroundAttached, targetInputAttached = targetAttached });
+        return mismatch == null;
+    }
+    static bool ParseWindow(object raw, out IntPtr handle)
+    {
+        handle = IntPtr.Zero;
+        long value;
+        if (!(raw is string) || !long.TryParse((string)raw, out value) || value < 0)return false;
+        handle = new IntPtr(value); return true;
+    }
     long sequence;
     uint lastRestoredClipboardSequence;
     System.Windows.Forms.Timer pendingTimer;
@@ -114,6 +197,9 @@ class Bridge : Form
     [DllImport("user32.dll")]static extern bool UnregisterHotKey(IntPtr h, int id);
     [DllImport("user32.dll")]static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")]static extern bool SetForegroundWindow(IntPtr h);
+    [DllImport("user32.dll")]static extern bool BringWindowToTop(IntPtr h);
+    [DllImport("kernel32.dll")]static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")]static extern bool AttachThreadInput(uint source, uint target, bool attach);
     [DllImport("user32.dll")]static extern uint GetWindowThreadProcessId(IntPtr h, out uint p);
     [DllImport("user32.dll")]static extern bool GetGUIThreadInfo(uint t, ref GUI g);
     [DllImport("user32.dll")]static extern short GetAsyncKeyState(int k);
@@ -141,26 +227,65 @@ class Bridge : Form
         );
     }
     // Capture both HWND focus and UI Automation identity for browser inputs sharing an HWND.
-    bool CaptureTarget()
+    bool CaptureTarget(bool externalOnly = false)
     {
+        token = null;
+        automationTarget = null;
         window = GetForegroundWindow();
         uint t = GetWindowThreadProcessId(window, out pid);
         GUI g = new GUI();
         g.size = Marshal.SizeOf(g);
-        if (window == IntPtr.Zero || !GetGUIThreadInfo(t, ref g) || g.focus == IntPtr.Zero)return false;
+        if (window == IntPtr.Zero || OwnWindow(window) || (externalOnly && pid == (uint)System.Diagnostics.Process.GetCurrentProcess().Id) || !GetGUIThreadInfo(t, ref g) || g.focus == IntPtr.Zero)return false;
         focus = g.focus;
         automationTarget = FocusedAutomationId();
         token = Guid.NewGuid().ToString("N");
         return true;
     }
-    bool Matches()
+    string FocusMismatch()
     {
-        if (window != GetForegroundWindow())return false;
+        if (window != GetForegroundWindow())return "foreground-window-changed";
         uint p;
         uint t = GetWindowThreadProcessId(window, out p);
+        if (p != pid)return "foreground-process-changed";
         GUI g = new GUI();
         g.size = Marshal.SizeOf(g);
-        return p == pid && GetGUIThreadInfo(t, ref g) && g.focus == focus && (automationTarget == null || automationTarget == FocusedAutomationId());
+        if (!GetGUIThreadInfo(t, ref g))return "native-focus-unavailable";
+        if (g.focus != focus)return "native-focus-changed";
+        if (automationTarget != null)
+        {
+            string current = FocusedAutomationId();
+            if (current == null)return "automation-focus-unavailable";
+            if (automationTarget != current)return "automation-focus-changed";
+        }
+        return null;
+    }
+    void EmitCaptureMetadata()
+    {
+        var windowClass = new System.Text.StringBuilder(256);
+        var focusClass = new System.Text.StringBuilder(256);
+        GetClassName(window, windowClass, 256);
+        GetClassName(focus, focusClass, 256);
+        string controlType = "unavailable";
+        try
+        {
+            var element = AutomationElement.FocusedElement;
+            if (element != null)controlType = element.Current.ControlType.ProgrammaticName;
+        }
+        catch { }
+        Emit(new { type = "diagnostic", code = "capture-target-metadata", processId = pid,
+            windowClass = windowClass.ToString(), focusClass = focusClass.ToString(),
+            automationControlType = controlType, hasAutomationIdentity = automationTarget != null });
+    }
+    bool Matches()
+    {
+        return FocusMismatch() == null;
+    }
+    bool ValidateInsertionFocus(string stage)
+    {
+        string mismatch = FocusMismatch();
+        if (mismatch == null)return true;
+        Emit(new { type = "diagnostic", code = "insertion-focus-mismatch", stage = stage, reason = mismatch });
+        return false;
     }
     static string FocusedAutomationId()
     {
@@ -184,7 +309,7 @@ class Bridge : Form
         }
         catch
         {
-            return true;
+            return true; // An unavailable provider must not bypass password protection.
         }
         var s = new System.Text.StringBuilder(256);
         GetClassName(focus, s, 256);
@@ -226,7 +351,13 @@ class Bridge : Form
             Result(id, false,"modifiers-held");
             return;
         }
-        if (!Matches())
+        // Only our registered widget may have stolen foreground during its click.
+        // Never activate a target after the user switches to any unrelated window.
+        if (OwnWindow(GetForegroundWindow()) && GetForegroundWindow() == widgetWindow && !RestoreWidgetTarget())
+        {
+            Result(id, false, "focus-changed"); return;
+        }
+        if (!ValidateInsertionFocus("before-snapshot"))
         {
             Result(id, false,"focus-changed");
             return;
@@ -263,7 +394,7 @@ class Bridge : Form
             Clipboard.SetText(text, TextDataFormat.UnicodeText);
             sequence = GetClipboardSequenceNumber();
             changed = true;
-            if (!Matches())
+            if (!ValidateInsertionFocus("before-input"))
             {
                 if (GetClipboardSequenceNumber() == sequence) Restore(saved);
                 Result(id, false,"focus-changed");
@@ -356,6 +487,63 @@ class Bridge : Form
                 }
                 return;
             }
+            if (type == "own-windows")
+            {
+                object widget, dashboard;
+                IntPtr parsedWidget, parsedDashboard;
+                if (c.TryGetValue("widget", out widget) && c.TryGetValue("dashboard", out dashboard) &&
+                    ParseWindow(widget, out parsedWidget) && ParseWindow(dashboard, out parsedDashboard))
+                {
+                    widgetWindow = parsedWidget; dashboardWindow = parsedDashboard;
+                }
+                return;
+            }
+            if (type == "capture")
+            {
+                object rawId;
+                if (!c.TryGetValue("id", out rawId) || !(rawId is string) || string.IsNullOrWhiteSpace((string)rawId) || ((string)rawId).Length > 256)
+                {
+                    Emit(new { type = "capture-result", id = "", ok = false, target = (object)null, reason = "invalid-id" });
+                    return;
+                }
+                id = (string)rawId;
+                // Guard before any focus/UIA calls; never replace an in-flight target.
+                if (held || active || busy || pendingTimer != null)
+                {
+                    Emit(new { type = "capture-result", id = id, ok = false, target = (object)null, reason = "capture-busy" });
+                    return;
+                }
+                bool captured;
+                IntPtr foreground = GetForegroundWindow();
+                if (widgetWindow != IntPtr.Zero && foreground == widgetWindow)
+                {
+                    captured = LoadCachedTarget(DateTime.UtcNow);
+                    if (!captured) Emit(new { type = "diagnostic", code = "widget-cache-unavailable",
+                        reason = cachedWindow == IntPtr.Zero ? "cache-missing" : "cache-stale", processId = cachedPid });
+                    if (captured)
+                    {
+                        captured = RestoreWidgetTarget();
+                        token = captured ? Guid.NewGuid().ToString("N") : null;
+                    }
+                }
+                else captured = !OwnWindow(foreground) && CaptureTarget(true);
+                if (!captured)
+                {
+                    Emit(new { type = "capture-result", id = id, ok = false, target = (object)null, reason = "no-valid-focus" });
+                    return;
+                }
+                if (Password())
+                {
+                    token = null;
+                    Emit(new { type = "capture-result", id = id, ok = false, target = (object)null, reason = "password-field" });
+                    return;
+                }
+                held = false;
+                active = true;
+                EmitCaptureMetadata();
+                Emit(new { type = "capture-result", id = id, ok = true, target = new { token = token }, reason = "captured" });
+                return;
+            }
             if (type != "insert")return;
             id = Convert.ToString(c["id"]);
             string text = Convert.ToString(c["text"]);
@@ -391,6 +579,7 @@ class Bridge : Form
         timer.Interval = 25;
         timer.Tick+= delegate
         {
+            CacheExternalFocus();
             if ((held || active) && Down(27))
             {
                 held = false;
@@ -593,10 +782,64 @@ class Bridge : Form
         bool noPendingExecution = events.Count == 3;
         bridge.Command("not json");
         bool malformedRefused = Convert.ToString(events[events.Count - 1]["reason"]) == "invalid-command";
-        bool ok = invalidTarget && emptyRefused && cancelled && noPendingExecution && malformedRefused;
+        bool captureIdsRefused = true;
+        foreach (string command in new[] {
+            "{\"type\":\"capture\"}", "{\"type\":\"capture\",\"id\":42}",
+            "{\"type\":\"capture\",\"id\":\" \"}",
+            bridge.j.Serialize(new { type = "capture", id = new string('x', 257) }) })
+        {
+            bridge.Command(command);
+            var result = events[events.Count - 1];
+            captureIdsRefused &= Convert.ToString(result["type"]) == "capture-result" &&
+                Convert.ToString(result["reason"]) == "invalid-id" && result["target"] == null;
+        }
+        bool captureBusyPreserved = true;
+        for (int guard = 0; guard < 4; guard++)
+        {
+            bridge.token = "preserved";
+            bridge.held = guard == 0;
+            bridge.active = guard == 1;
+            bridge.busy = guard == 2;
+            if (guard == 3) bridge.pendingTimer = new System.Windows.Forms.Timer();
+            bridge.Command("{\"type\":\"capture\",\"id\":\"guard-test\"}");
+            var result = events[events.Count - 1];
+            captureBusyPreserved &= Convert.ToString(result["reason"]) == "capture-busy" &&
+                Convert.ToString(result["id"]) == "guard-test" && bridge.token == "preserved";
+            if (bridge.pendingTimer != null) { bridge.pendingTimer.Dispose(); bridge.pendingTimer = null; }
+            bridge.held = bridge.active = bridge.busy = false;
+        }
+        bridge.Command("{\"type\":\"own-windows\",\"widget\":\"123\",\"dashboard\":\"456\"}");
+        bool ownWindowsRegistered = bridge.OwnWindow(new IntPtr(123)) && bridge.OwnWindow(new IntPtr(456)) &&
+            !bridge.OwnWindow(IntPtr.Zero) && !bridge.OwnWindow(new IntPtr(789));
+        bridge.Command("{\"type\":\"own-windows\",\"widget\":\"-1\",\"dashboard\":\"999\"}");
+        bridge.Command("{\"type\":\"own-windows\",\"widget\":123,\"dashboard\":\"999\"}");
+        bool invalidHandlesPreserved = bridge.widgetWindow == new IntPtr(123) && bridge.dashboardWindow == new IntPtr(456);
+        DateTime cacheTime = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        bridge.cachedWindow = new IntPtr(789); bridge.cachedFocus = new IntPtr(790);
+        bridge.cachedPid = 12; bridge.cachedAt = cacheTime;
+        bridge.window = new IntPtr(999); bridge.token = "old-target";
+        bool staleCacheRefused = !bridge.LoadCachedTarget(cacheTime.AddMilliseconds(5001)) &&
+            bridge.window == new IntPtr(999) && bridge.token == null;
+        bool futureCacheRefused = !bridge.LoadCachedTarget(cacheTime.AddMilliseconds(-1));
+        bool freshCacheLoaded = bridge.LoadCachedTarget(cacheTime.AddSeconds(5)) &&
+            bridge.window == new IntPtr(789) && bridge.focus == new IntPtr(790) && bridge.pid == 12;
+        bool restorationGuards = bridge.CanRestoreWidgetTarget(new IntPtr(123)) &&
+            !bridge.CanRestoreWidgetTarget(new IntPtr(456)) &&
+            !bridge.CanRestoreWidgetTarget(new IntPtr(888)) && !bridge.CanRestoreWidgetTarget(IntPtr.Zero);
+        bridge.window = bridge.dashboardWindow;
+        restorationGuards &= !bridge.CanRestoreWidgetTarget(bridge.widgetWindow);
+        bridge.window = IntPtr.Zero;
+        restorationGuards &= !bridge.CanRestoreWidgetTarget(bridge.widgetWindow);
+        bridge.window = new IntPtr(789); bridge.pid = 0;
+        restorationGuards &= !bridge.CanRestoreWidgetTarget(bridge.widgetWindow);
+        bool ok = staleCacheRefused && futureCacheRefused && freshCacheLoaded && restorationGuards && invalidTarget && emptyRefused && cancelled && noPendingExecution && malformedRefused && captureIdsRefused && captureBusyPreserved && ownWindowsRegistered && invalidHandlesPreserved;
         bridge.Emit(new { type = "logic-test", ok = ok, invalidTarget = invalidTarget,
             emptyRefused = emptyRefused, pendingCancelled = cancelled,
-            noPendingExecution = noPendingExecution, malformedRefused = malformedRefused });
+            noPendingExecution = noPendingExecution, malformedRefused = malformedRefused, captureIdsRefused = captureIdsRefused,
+            captureBusyPreserved = captureBusyPreserved, ownWindowsRegistered = ownWindowsRegistered,
+            invalidHandlesPreserved = invalidHandlesPreserved, staleCacheRefused = staleCacheRefused,
+            futureCacheRefused = futureCacheRefused, freshCacheLoaded = freshCacheLoaded,
+            restorationGuards = restorationGuards });
         bridge.Dispose();
         return ok ? 0 : 1;
     }

@@ -1,27 +1,27 @@
 # QuillKey
 
-Local English voice dictation for Windows. Hold **Ctrl + Alt + Space**, speak, and release to insert your words into the focused app. A small nonactivating overlay shows live words; **Escape** cancels.
+Local English voice dictation for Windows. Click into a chat input, then click the tiny floating microphone to start. Click it again to finish and paste into that field. Hover unfolds the control; **Escape** cancels. **Ctrl + Alt + Space** remains available for hold-to-talk.
 
 QuillKey uses NVIDIA Nemotron streaming ASR on your own GPU. No transcription API, account, subscription, or remote cleanup model is required. This is an early Windows preview, with an independent identity and implementation.
 
 ## Install and use
 
-Run `QuillKey-0.2.0-Setup.exe` from the build output. Installation is per-user, with Start menu and desktop shortcuts. The installer bundles the English model and CUDA runtime; Node.js and Python are not required by the installed app. This preview is unsigned.
+Run `QuillKey-0.3.0-Setup.exe` from the build output. Installation is per-user, with Start menu and desktop shortcuts. The installer bundles the English model and CUDA runtime; Node.js and Python are not required by the installed app. This preview is unsigned.
 
 1. Open QuillKey and wait for **Local engine ready**.
 2. Place the caret in an editable field in another app.
-3. Hold **Ctrl + Alt + Space**, speak, then release all keys.
+3. Click the floating microphone, speak, then click again to finish. Alternatively, hold **Ctrl + Alt + Space** and release all keys to finish.
 4. Keep focus in the same field until finalization finishes. Press **Escape** to cancel.
 
-Closing the dashboard hides it in the system tray. Use the tray menu to show it or quit. Dashboard recordings stay in the editable transcript for explicit copying; only shortcut recordings request automatic insertion.
+Closing the dashboard hides it in the system tray. Use the tray menu to show it or quit. Dashboard recordings stay in the editable transcript for explicit copying; floating-mic and shortcut recordings request automatic insertion. If insertion is unavailable, QuillKey copies the final text and shows **Copied — press Ctrl+V**. It never presses Send.
 
 Requirements: Windows x64, .NET Framework 4.x (included with modern Windows), compatible NVIDIA CUDA GPU/driver, and roughly 2 GB free disk space during installation. Validated model inference on an RTX 2070 SUPER with 8 GB VRAM. Other GPUs and CPU-only machines have not been validated; this build explicitly selects CUDA.
 
 ## Behavior and limitations
 
 - Native global shortcut, nonactivating overlay, streaming partials, final transcript, cancel, and tray lifecycle.
-- The helper records the original window/control and UI Automation identity when available. It refuses insertion if focus changes or a password control is detected. Unsupported or elevated apps may require manual Copy.
-- Insertion sends one paste shortcut. Clipboard formats are snapshotted conservatively and restored after 600 ms only if the clipboard sequence is unchanged. If safe preservation fails, automatic paste is refused and the transcript remains in QuillKey. Slow target apps may not consume a paste before restoration; sending input is not proof the target accepted it.
+- The helper records the original window/control and UI Automation identity when available. It refuses insertion if focus changes or a password control is detected. Unsupported or elevated apps use the clipboard fallback.
+- Insertion sends one paste shortcut. Clipboard formats are snapshotted conservatively and restored after 600 ms only if the clipboard sequence is unchanged. If safe preservation or insertion fails, QuillKey deliberately replaces the clipboard with your final transcript for Ctrl+V. If the clipboard is unavailable, the transcript remains in QuillKey and an error is shown. Slow target apps may not consume a paste before restoration; sending input is not proof the target accepted it.
 - Very short shortcut taps cancel pending microphone setup. Start speaking once the overlay is listening. Sessions are bounded to about two minutes.
 - No AI rewriting, filler cleanup guarantee, vocabulary editor, model switch, auto-start, or automatic updates yet. Parakeet and optional local refinement are future work.
 - Audio and transcripts are processed locally. There is no app transcript history or audio recording store. Diagnostic logs live under the Electron user-data directory and may contain runtime diagnostics. Setup/build downloads dependencies; normal transcription uses loopback services. We have not audited vendor binaries with a network capture.

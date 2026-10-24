@@ -1,5 +1,17 @@
 # Windows desktop validation
 
+## v0.3.0 update — 2026-10-24
+
+- `npm test`: 36 passing tests, including hover/click lifecycle, destroyed-window IPC regression, clipboard success verification, copy failure, stale/cancelled finals, helper exit, and timeout fallback.
+- Native compilation and `--logic-test` pass, including target-cache freshness, capture concurrency, and restoration guards.
+- Packaged v0.3.0 `--smoke-test` passed with the bundled model and synthetic microphone: expected phrase recognized, exit 0, speech server and native helper exited cleanly. This checks transcription and final IPC, not automatic target insertion.
+- v0.3.0 NSIS installer completed with exit 0; installed executable reports 0.3.0.0. Installer is unsigned. SHA-256: `C644AB8F6EAA2B14CDCAD9435096CDB006D15A099577A939BE29AD80A9AF2421`.
+- Floating microphone supports hover expansion and click-to-start/click-to-stop. Failed target capture starts copy-only dictation; refused insertion copies the final transcript and displays “Copied — press Ctrl+V”. Successful native insertion retains the existing clipboard restoration behavior. Neither path presses Enter.
+- Fixed the reported shutdown `Object has been destroyed` exception by rejecting late IPC from destroyed windows/frames.
+- Actual hover-driven paste into third-party apps remains unverified. Earlier interactive testing encountered Windows focus-restoration refusal; clipboard fallback is provided for that case. The mocked timeout test does not prove operating-system process termination. Do not interpret a native SendInput success as confirmation that every target app consumed text.
+
+The results below describe the prior v0.2.0 build, not validation of every v0.3.0 interaction.
+
 Validation date: 2026-10-23. Windows x64, RTX 2070 SUPER 8 GB, Electron 45.0.0, NeMo-Speech.cpp 0.2.0, Nemotron English 0.6B Q8.
 
 ## Completed
