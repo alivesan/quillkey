@@ -6,7 +6,7 @@ QuillKey uses NVIDIA Nemotron streaming ASR on your own GPU. No transcription AP
 
 ## Install and use
 
-Run `QuillKey-0.3.1-Setup.exe` from the build output. Installation is per-user, with Start menu and desktop shortcuts. The installer bundles the English model and CUDA runtime; Node.js and Python are not required by the installed app. This preview is unsigned.
+Run `QuillKey-0.4.0-Setup.exe` from the build output. Installation is per-user, with Start menu and desktop shortcuts. The installer bundles the English model and CUDA runtime; Node.js and Python are not required by the installed app. This preview is unsigned.
 
 1. Open QuillKey and wait for **Local engine ready**.
 2. Place the caret in an editable field in another app.

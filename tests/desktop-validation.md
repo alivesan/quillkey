@@ -1,5 +1,12 @@
 # Windows desktop validation
 
+## v0.4.0 visual polish — 2026-10-24
+
+- Redesigned dashboard in charcoal, ivory, and violet with a compact capture card, readable transcript area, and original QuillKey identity. All renderer control IDs retained.
+- Floating microphone uses matching surfaces, clearer typography, and violet recording feedback; its size and click/hover lifecycle are unchanged.
+- Native window uses a dark theme and hides the menu bar. Dashboard visually inspected in the running Electron app at its default window size; compact-height layout keeps transcript and footer visible.
+- 39 automated tests pass. This visual update does not establish third-party paste compatibility or a 30-minute endurance result.
+
 ## v0.3.1 long dictation — 2026-10-24
 
 - Recording now stops gracefully at 30 minutes from engine readiness. Server and desktop watchdogs allow 32 minutes; the existing finalization deadline remains 30 seconds in the renderer.

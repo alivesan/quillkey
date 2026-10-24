@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, session, screen, dialog, clipboard } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, session, screen, dialog, clipboard, nativeTheme } = require('electron');
 const { spawn } = require('node:child_process');
 const { mkdirSync, appendFileSync } = require('node:fs');
 const path = require('node:path');
@@ -8,6 +8,7 @@ const { randomUUID } = require('node:crypto');
 // Keep the transparent Windows widget stable across desktop/remote-session changes.
 // ASR uses its separate native CUDA process and is unaffected by UI rendering.
 app.disableHardwareAcceleration();
+if (nativeTheme) nativeTheme.themeSource = 'dark';
 const root = path.resolve(__dirname, '..');
 const origin = 'http://127.0.0.1:18765';
 let dashboard, overlay, tray, server, helper, current, nativeReady = false, rendererReady = false, quitting = false;
@@ -125,7 +126,7 @@ async function start() {
   session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => callback(contents === dashboard?.webContents && permission === 'media' && details.requestingUrl === origin + '/'));
   session.defaultSession.setPermissionCheckHandler((contents, permission, requestingOrigin) => contents === dashboard?.webContents && permission === 'media' && requestingOrigin === origin);
   const prefs = { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false };
-  dashboard = new BrowserWindow({ width: 1120, height: 790, minWidth: 850, minHeight: 640, title: 'QuillKey', show: false, webPreferences: prefs });
+  dashboard = new BrowserWindow({ width: 1120, height: 790, minWidth: 850, minHeight: 640, title: 'QuillKey', backgroundColor: '#171719', autoHideMenuBar: true, show: false, webPreferences: prefs });
   dashboard.on('closed', () => { dashboard = null; rendererReady = false; });
   protect(dashboard, origin + '/');
   dashboard.on('close', e => { if (!quitting) { e.preventDefault(); dashboard.hide(); } });
